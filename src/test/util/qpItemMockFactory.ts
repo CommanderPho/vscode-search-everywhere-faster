@@ -1,42 +1,49 @@
 import * as vscode from "vscode";
-import { getConfiguration } from "./mockFactory";
-import ItemsFilterPhrases from "../../interface/itemsFilterPhrases";
-import QuickPickItem from "../../interface/quickPickItem";
+import { ItemsFilterPhrases, QuickPickItem } from "../../types";
 import { getUntitledItem } from "./itemMockFactory";
+import { getConfiguration } from "./mockFactory";
 
 export const getQpItem = (
   path: string = "/./fake/",
   suffix: string | number = 1,
   differentStartAndEnd: boolean = false,
   withIcon: boolean = false,
-  withFilterPhrase: boolean = false
+  withFilterPhrase: boolean = false,
+  symbolKind: number = 0
 ): QuickPickItem => {
   const configuration = getConfiguration().searchEverywhere;
   const icons = configuration.icons;
   const itemsFilterPhrases = configuration.itemsFilterPhrases;
-  const kind = 0;
   const qpItem = {
-    label: `${withIcon ? `$(${icons[kind]})  ` : ""}fake-${
+    label: `${withIcon ? `$(${icons[symbolKind]})  ` : ""}fake-${
       suffix ? `${suffix}` : ""
     }.ts`,
     description: `${
       withFilterPhrase
-        ? `[${itemsFilterPhrases[kind]}fake-${suffix ? `${suffix}` : ""}.ts] `
+        ? `[${itemsFilterPhrases[symbolKind]}fake-${
+            suffix ? `${suffix}` : ""
+          }.ts] `
         : ""
     }File`,
     detail: `${path}fake-${suffix ? `${suffix}` : ""}.ts`,
     uri: vscode.Uri.file(`${path}fake-${suffix ? `${suffix}` : ""}.ts`),
-    kind,
+    symbolKind,
     range: {
       start: new vscode.Position(0, 0),
       end: differentStartAndEnd
         ? new vscode.Position(0, 5)
         : new vscode.Position(0, 0),
     },
+    buttons: [
+      {
+        iconPath: new vscode.ThemeIcon("open-preview"),
+        tooltip: "Open to the side",
+      },
+    ],
   };
   const qpItemAny = qpItem as any;
-  qpItemAny.uri._fsPath = qpItemAny.uri.fsPath;
-  qpItemAny.detail = qpItemAny.uri.fsPath;
+  qpItemAny.uri._fsPath = qpItemAny.uri.path;
+  qpItemAny.detail = qpItemAny.uri.path;
 
   return qpItem;
 };
@@ -45,7 +52,7 @@ export const getUntitledQpItem = (): QuickPickItem => {
   return {
     label: "fake-1.ts",
     uri: getUntitledItem(),
-    kind: 0,
+    symbolKind: 0,
     range: {
       start: new vscode.Position(0, 0),
       end: new vscode.Position(0, 5),
@@ -75,7 +82,7 @@ export const getQpItemsSymbolAndUri = (
       description: "File",
       detail: `${path}fake-2.ts`,
       uri: vscode.Uri.file(`${path}fake-2.ts`),
-      kind: 0,
+      symbolKind: 0,
       range: {
         start: new vscode.Position(0, 0),
         end: new vscode.Position(0, 0),
@@ -86,7 +93,7 @@ export const getQpItemsSymbolAndUri = (
       description: "Module at lines: 1 - 3 in test parent",
       detail: `${path}fake-2.ts`,
       uri: vscode.Uri.file(`${path}fake-2.ts`),
-      kind: 1,
+      symbolKind: 1,
       range: {
         start: new vscode.Position(0, 0),
         end: new vscode.Position(3, 0),
@@ -95,8 +102,8 @@ export const getQpItemsSymbolAndUri = (
   ];
 
   qpItemsSymbolAndUri.forEach((qpItem: any) => {
-    qpItem.uri._fsPath = qpItem.uri.fsPath;
-    qpItem.detail = qpItem.uri.fsPath;
+    qpItem.uri._fsPath = qpItem.uri.path;
+    qpItem.detail = qpItem.uri.path;
   });
 
   return qpItemsSymbolAndUri;
@@ -111,7 +118,7 @@ export const getQpItemsSymbolAndUriExt = (
       description: "File",
       detail: `${path}fake-2.ts`,
       uri: vscode.Uri.file(`${path}fake-2.ts`),
-      kind: 0,
+      symbolKind: 0,
       range: {
         start: new vscode.Position(0, 0),
         end: new vscode.Position(0, 0),
@@ -122,7 +129,7 @@ export const getQpItemsSymbolAndUriExt = (
       description: "Module at lines: 1 - 3 in test parent",
       detail: `${path}fake-2.ts`,
       uri: vscode.Uri.file(`${path}fake-2.ts`),
-      kind: 1,
+      symbolKind: 1,
       range: {
         start: new vscode.Position(0, 0),
         end: new vscode.Position(3, 0),
@@ -131,8 +138,8 @@ export const getQpItemsSymbolAndUriExt = (
   ];
 
   qpItemsSymbolAndUriExt.forEach((qpItem: any) => {
-    qpItem.uri._fsPath = qpItem.uri.fsPath;
-    qpItem.detail = qpItem.uri.fsPath;
+    qpItem.uri._fsPath = qpItem.uri.path;
+    qpItem.detail = qpItem.uri.path;
   });
 
   return qpItemsSymbolAndUriExt;
@@ -145,15 +152,15 @@ export const getQpItemDocumentSymbolSingleLine = (
   const configuration = getConfiguration().searchEverywhere;
   const icons = configuration.icons;
   const itemsFilterPhrases = configuration.itemsFilterPhrases;
-  const kind = 1;
+  const symbolKind = 1;
   const qpItem = {
-    label: `${withIcon ? `$(${icons[kind]})  ` : ""}test name`,
+    label: `${withIcon ? `$(${icons[symbolKind]})  ` : ""}test name`,
     description: `${
-      withFilterPhrase ? `[${itemsFilterPhrases[kind]}test name] ` : ""
+      withFilterPhrase ? `[${itemsFilterPhrases[symbolKind]}test name] ` : ""
     }Module at line: 1`,
     detail: "/./fake/fake-1.ts",
     uri: vscode.Uri.file("./fake/fake-1.ts"),
-    kind,
+    symbolKind,
     range: {
       start: new vscode.Position(0, 0),
       end: new vscode.Position(0, 0),
@@ -161,8 +168,8 @@ export const getQpItemDocumentSymbolSingleLine = (
   } as QuickPickItem;
 
   const qpItemAny = qpItem as any;
-  qpItemAny.uri._fsPath = qpItemAny.uri.fsPath;
-  qpItemAny.detail = qpItemAny.uri.fsPath;
+  qpItemAny.uri._fsPath = qpItemAny.uri.path;
+  qpItemAny.detail = qpItemAny.uri.path;
   return qpItem;
 };
 
@@ -174,15 +181,15 @@ export const getDocumentSymbolQpItemMultiLine = (
     description: `Module at lines: 1 - 3${withParent ? " in test parent" : ""}`,
     detail: "/./fake/fake-1.ts",
     uri: vscode.Uri.file("./fake/fake-1.ts"),
-    kind: 1,
+    symbolKind: 1,
     range: {
       start: new vscode.Position(0, 0),
       end: new vscode.Position(3, 0),
     },
   };
   const qpItemAny = qpItem as any;
-  qpItemAny.uri._fsPath = qpItemAny.uri.fsPath;
-  qpItemAny.detail = qpItemAny.uri.fsPath;
+  qpItemAny.uri._fsPath = qpItemAny.uri.path;
+  qpItemAny.detail = qpItemAny.uri.path;
 
   return qpItem;
 };
@@ -196,7 +203,7 @@ export const getQpHelpItem = (
     label: `${helpPhrase} Type ${itemFilterPhrase} for limit results to ${
       vscode.SymbolKind[Number(kind)]
     } only`,
-    kind: Number(kind),
+    symbolKind: Number(kind),
     isHelp: true,
     uri: vscode.Uri.parse("#"),
   };

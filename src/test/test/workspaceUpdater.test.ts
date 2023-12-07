@@ -1,39 +1,22 @@
 import { assert } from "chai";
-import Cache from "../../cache";
-import DetailedActionType from "../../enum/detailedActionType";
-import Utils from "../../utils";
-import WorkspaceCommon from "../../workspaceCommon";
-import WorkspaceUpdater from "../../workspaceUpdater";
+import { DetailedActionType } from "../../types";
+import * as workspaceUpdater from "../../workspaceUpdater";
 import { getTestSetups } from "../testSetup/workspaceUpdater.testSetup";
 import { getDirectory, getItem } from "../util/itemMockFactory";
 import {
   getQpItems,
   getQpItemsSymbolAndUriExt,
 } from "../util/qpItemMockFactory";
-import {
-  getCacheStub,
-  getUtilsStub,
-  getWorkspaceCommonStub,
-} from "../util/stubFactory";
+
+type SetupsType = ReturnType<typeof getTestSetups>;
 
 describe("WorkspaceUpdater", () => {
-  let commonStub: WorkspaceCommon = getWorkspaceCommonStub();
-  let cacheStub: Cache = getCacheStub();
-  let utilsStub: Utils = getUtilsStub();
-  let workspaceUpdater: WorkspaceUpdater = new WorkspaceUpdater(
-    commonStub,
-    cacheStub,
-    utilsStub
-  );
-  let setups = getTestSetups(workspaceUpdater);
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    commonStub = getWorkspaceCommonStub();
-    cacheStub = getCacheStub();
-    utilsStub = getUtilsStub();
-    workspaceUpdater = new WorkspaceUpdater(commonStub, cacheStub, utilsStub);
-    setups = getTestSetups(workspaceUpdater);
+  before(() => {
+    setups = getTestSetups();
   });
+  afterEach(() => setups.afterEach());
 
   describe("updateCacheByPath", () => {
     it(`1: should index method be invoked which
@@ -89,15 +72,18 @@ describe("WorkspaceUpdater", () => {
       assert.equal(updateDataStub.calledOnce, true);
       assert.deepEqual(updateDataStub.args[0][0], getQpItems(2, "./fake-new/"));
     });
-    // it(`5: should remove old data for given uri and get
-    //       new data if file was moved to another directory`, async () => {
-    //   const [updateDataStub] = setups.updateCacheByPath5();
-    //   await workspaceUpdater.updateCacheByPath(getItem());
-    //   assert.equal(updateDataStub.calledOnce, true);
-    //   assert.deepEqual(
-    //     updateDataStub.args[0][0],
-    //     getQpItemsSymbolAndUriExt("./fake-new/")
-    //   );
-    // });
+
+    it(`6: should update data for given uri when file is reloaded if it is unsaved`, async () => {
+      const [updateDataStub] = setups.updateCacheByPath6();
+      await workspaceUpdater.updateCacheByPath(
+        getItem(),
+        DetailedActionType.ReloadUnsavedUri
+      );
+      assert.equal(updateDataStub.calledOnce, true);
+      assert.deepEqual(
+        updateDataStub.args[0][0],
+        getQpItemsSymbolAndUriExt("./fake-new/")
+      );
+    });
   });
 });

@@ -1,10 +1,6 @@
 import { assert } from "chai";
-import Cache from "../../cache";
-import Config from "../../config";
-import ActionTrigger from "../../enum/actionTrigger";
-import ActionType from "../../enum/actionType";
-import Utils from "../../utils";
-import Workspace from "../../workspace";
+import { ActionTrigger, ActionType, ExcludeMode } from "../../types";
+import { workspace } from "../../workspace";
 import { getTestSetups } from "../testSetup/workspace.testSetup";
 import {
   getConfigurationChangeEvent,
@@ -14,23 +10,40 @@ import {
   getTextDocumentChangeEvent,
   getWorkspaceFoldersChangeEvent,
 } from "../util/eventMockFactory";
-import { getCacheStub, getConfigStub, getUtilsStub } from "../util/stubFactory";
+import { getAction } from "../util/mockFactory";
+import { getTextDocumentStub } from "../util/stubFactory";
+
+type SetupsType = ReturnType<typeof getTestSetups>;
 
 describe("Workspace", () => {
-  let cacheStub: Cache = getCacheStub();
-  let utilsStub: Utils = getUtilsStub();
-  let configStub: Config = getConfigStub();
-  let workspace: Workspace = new Workspace(cacheStub, utilsStub, configStub);
-  let workspaceAny: any;
-  let setups = getTestSetups(workspace);
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    cacheStub = getCacheStub();
-    utilsStub = getUtilsStub();
-    configStub = getConfigStub();
-    workspace = new Workspace(cacheStub, utilsStub, configStub);
-    workspaceAny = workspace as any;
-    setups = getTestSetups(workspace);
+  before(() => {
+    setups = getTestSetups();
+  });
+  afterEach(() => setups.afterEach());
+
+  describe("init", () => {
+    it("1: should utils.setWorkspaceFoldersCommonPath method be invoked", async () => {
+      const [setWorkspaceFoldersCommonPathStub] = setups.init1();
+      await workspace.init();
+
+      assert.equal(setWorkspaceFoldersCommonPathStub.calledOnce, true);
+    });
+
+    it("2: should dataService.fetchConfig method be invoked", async () => {
+      const [fetchConfigStub] = setups.init2();
+      await workspace.init();
+
+      assert.equal(fetchConfigStub.calledOnce, true);
+    });
+
+    it("3: should dataConverter.fetchConfig method be invoked", async () => {
+      const [fetchConfigStub] = setups.init3();
+      await workspace.init();
+
+      assert.equal(fetchConfigStub.calledOnce, true);
+    });
   });
 
   describe("index", () => {
@@ -40,6 +53,29 @@ describe("Workspace", () => {
 
       assert.equal(indexStub.calledOnce, true);
     });
+
+    it("1: should cache.clear method be invoked", async () => {
+      const [clearStub] = setups.index2();
+      await workspace.index(ActionTrigger.Search);
+
+      assert.equal(clearStub.calledOnce, true);
+    });
+  });
+
+  describe("removeDataForUnsavedUris", () => {
+    it("1: should common.registerAction be invoked twice for each unsaved uri", async () => {
+      const [registerActionStub] = setups.removeDataForUnsavedUris1();
+      await workspace.removeDataForUnsavedUris();
+
+      assert.equal(registerActionStub.callCount, 4);
+    });
+
+    it("2: should clear array of unsaved uris", async () => {
+      setups.removeDataForUnsavedUris2();
+      await workspace.removeDataForUnsavedUris();
+
+      assert.equal(workspace.getNotSavedUris().size, 0);
+    });
   });
 
   describe("registerEventListeners", () => {
@@ -48,6 +84,7 @@ describe("Workspace", () => {
         onDidChangeConfigurationStub,
         onDidChangeWorkspaceFoldersStub,
         onDidChangeTextDocumentStub,
+        onDidSaveTextDocumentStub,
         onWillProcessingStub,
         onDidProcessingStub,
         onWillExecuteActionStub,
@@ -58,6 +95,7 @@ describe("Workspace", () => {
       assert.equal(onDidChangeConfigurationStub.calledOnce, true);
       assert.equal(onDidChangeWorkspaceFoldersStub.calledOnce, true);
       assert.equal(onDidChangeTextDocumentStub.calledOnce, true);
+      assert.equal(onDidSaveTextDocumentStub.calledOnce, true);
       assert.equal(onWillProcessingStub.calledOnce, true);
       assert.equal(onDidProcessingStub.calledOnce, true);
       assert.equal(onWillExecuteActionStub.calledOnce, true);
@@ -73,34 +111,119 @@ describe("Workspace", () => {
     });
   });
 
+  describe("shouldReindexOnConfigurationChange", () => {
+    it(`1: should return true if extension configuration has changed
+      and is not excluded from refreshing`, () => {
+      setups.shouldReindexOnConfigurationChange1();
+
+      assert.equal(
+        workspace.shouldReindexOnConfigurationChange(
+          getConfigurationChangeEvent(true, true, false)
+        ),
+        true
+      );
+    });
+
+    it(`2: should return false if extension configuration has changed
+      but is excluded from refreshing`, () => {
+      setups.shouldReindexOnConfigurationChange2();
+
+      assert.equal(
+        workspace.shouldReindexOnConfigurationChange(
+          getConfigurationChangeEvent(false)
+        ),
+        false
+      );
+    });
+
+    it("3: should return false if extension configuration has not changed", () => {
+      setups.shouldReindexOnConfigurationChange3();
+
+      assert.equal(
+        workspace.shouldReindexOnConfigurationChange(
+          getConfigurationChangeEvent(false)
+        ),
+        false
+      );
+    });
+
+    it(`4: should return true if exclude mode is set to 'files and search',
+      configuration has changed and files.exclude has changed`, () => {
+      setups.shouldReindexOnConfigurationChange4();
+
+      assert.equal(
+        workspace.shouldReindexOnConfigurationChange(
+          getConfigurationChangeEvent(
+            false,
+            false,
+            true,
+            ExcludeMode.FilesAndSearch,
+            true
+          )
+        ),
+        true
+      );
+    });
+
+    it(`5: should return true if exclude mode is set to 'files and search',
+      configuration has changed and search.exclude has changed`, () => {
+      setups.shouldReindexOnConfigurationChange5();
+
+      assert.equal(
+        workspace.shouldReindexOnConfigurationChange(
+          getConfigurationChangeEvent(
+            false,
+            false,
+            true,
+            ExcludeMode.FilesAndSearch,
+            false,
+            true
+          )
+        ),
+        true
+      );
+    });
+  });
+
   describe("handleDidChangeConfiguration", () => {
     it(`1: should index method be invoked which register
         rebuild action if extension configuration has changed`, async () => {
       const [indexStub] = setups.handleDidChangeConfiguration1();
 
-      await workspaceAny.handleDidChangeConfiguration(
+      await workspace.handleDidChangeConfiguration(
         getConfigurationChangeEvent(true)
       );
 
       assert.equal(indexStub.calledOnce, true);
     });
 
-    it(`2: should index method be invoked which register
-      rebuild action if isDebounceConfigurationToggled is true`, async () => {
+    it(`2: should onDidDebounceConfigToggle event be emitted
+      if isDebounceConfigurationToggled is true`, async () => {
       const eventEmitter = setups.handleDidChangeConfiguration2();
 
-      await workspaceAny.handleDidChangeConfiguration(
+      await workspace.handleDidChangeConfiguration(
         getConfigurationChangeEvent(true)
       );
 
       assert.equal(eventEmitter.fire.calledOnce, true);
     });
 
-    it("3: should do nothing if extension configuration has not changed", async () => {
-      const [registerActionStub, onDidDebounceConfigToggleEventEmitterStub] =
-        setups.handleDidChangeConfiguration3();
+    it(`3: should onDidSortingConfigToggle event be emitted
+      if isSortingConfigurationToggled is true`, async () => {
+      const eventEmitter = setups.handleDidChangeConfiguration3();
 
-      await workspaceAny.handleDidChangeConfiguration(
+      await workspace.handleDidChangeConfiguration(
+        getConfigurationChangeEvent(true)
+      );
+
+      assert.equal(eventEmitter.fire.calledOnce, true);
+    });
+
+    it("4: should do nothing if extension configuration has not changed", async () => {
+      const [registerActionStub, onDidDebounceConfigToggleEventEmitterStub] =
+        setups.handleDidChangeConfiguration4();
+
+      await workspace.handleDidChangeConfiguration(
         getConfigurationChangeEvent(false)
       );
 
@@ -108,10 +231,10 @@ describe("Workspace", () => {
       assert.equal(onDidDebounceConfigToggleEventEmitterStub.calledOnce, false);
     });
 
-    it("4: should cache.clearConfig method be invoked", async () => {
-      const [clearConfigStub] = setups.handleDidChangeConfiguration4();
+    it("5: should cache.clearConfig method be invoked", async () => {
+      const [clearConfigStub] = setups.handleDidChangeConfiguration5();
 
-      await workspaceAny.handleDidChangeConfiguration(
+      await workspace.handleDidChangeConfiguration(
         getConfigurationChangeEvent(true)
       );
 
@@ -124,7 +247,7 @@ describe("Workspace", () => {
         rebuild action if amount of opened folders in workspace has changed`, async () => {
       const [indexStub] = setups.handleDidChangeWorkspaceFolders1();
 
-      await workspaceAny.handleDidChangeWorkspaceFolders(
+      await workspace.handleDidChangeWorkspaceFolders(
         getWorkspaceFoldersChangeEvent(true)
       );
 
@@ -133,7 +256,7 @@ describe("Workspace", () => {
 
     it("2: should do nothing if extension configuration has not changed", async () => {
       const [registerActionStub] = setups.handleDidChangeWorkspaceFolders2();
-      await workspaceAny.handleDidChangeWorkspaceFolders(
+      await workspace.handleDidChangeWorkspaceFolders(
         getWorkspaceFoldersChangeEvent(false)
       );
 
@@ -146,7 +269,7 @@ describe("Workspace", () => {
         action if text document has changed and exists in workspace`, async () => {
       const [registerActionStub] = setups.handleDidChangeTextDocument1();
       const textDocumentChangeEvent = getTextDocumentChangeEvent(true);
-      await workspaceAny.handleDidChangeTextDocument(textDocumentChangeEvent);
+      await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
 
       assert.equal(registerActionStub.calledTwice, true);
       assert.equal(registerActionStub.args[0][0], ActionType.Remove);
@@ -156,7 +279,7 @@ describe("Workspace", () => {
     it(`2: should do nothing if text document does not exist in workspace`, async () => {
       const [registerActionStub] = setups.handleDidChangeTextDocument2();
       const textDocumentChangeEvent = getTextDocumentChangeEvent(true);
-      await workspaceAny.handleDidChangeTextDocument(textDocumentChangeEvent);
+      await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
 
       assert.equal(registerActionStub.calledOnce, false);
     });
@@ -164,9 +287,17 @@ describe("Workspace", () => {
     it(`3: should do nothing if text document has not changed`, async () => {
       const [registerActionStub] = setups.handleDidChangeTextDocument3();
       const textDocumentChangeEvent = await getTextDocumentChangeEvent();
-      await workspaceAny.handleDidChangeTextDocument(textDocumentChangeEvent);
+      await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
 
       assert.equal(registerActionStub.calledOnce, false);
+    });
+
+    it(`4: should add uri to not saved array if text document has changed and exists in workspace`, async () => {
+      setups.handleDidChangeTextDocument4();
+      const textDocumentChangeEvent = getTextDocumentChangeEvent(true);
+      await workspace.handleDidChangeTextDocument(textDocumentChangeEvent);
+
+      assert.equal(workspace.getNotSavedUris().size, 1);
     });
   });
 
@@ -175,7 +306,7 @@ describe("Workspace", () => {
         actions for each renamed or moved file`, async () => {
       const [registerActionStub] = setups.handleDidRenameFiles1();
 
-      await workspaceAny.handleDidRenameFiles(getFileRenameEvent());
+      await workspace.handleDidRenameFiles(getFileRenameEvent());
 
       assert.equal(registerActionStub.callCount, 4);
       assert.equal(registerActionStub.args[0][0], ActionType.Update);
@@ -188,7 +319,7 @@ describe("Workspace", () => {
         action for renamed or moved directory`, async () => {
       const [registerActionStub] = setups.handleDidRenameFiles2();
 
-      await workspaceAny.handleDidRenameFiles(getFileRenameEvent(true));
+      await workspace.handleDidRenameFiles(getFileRenameEvent(true));
 
       assert.equal(registerActionStub.calledOnce, true);
       assert.equal(registerActionStub.args[0][0], ActionType.Update);
@@ -199,7 +330,7 @@ describe("Workspace", () => {
     it(`1: should registerAction method be invoked which register update action
       when file is created`, async () => {
       const [registerActionStub] = setups.handleDidCreateFiles1();
-      await workspaceAny.handleDidCreateFiles(getFileCreateEvent());
+      await workspace.handleDidCreateFiles(getFileCreateEvent());
 
       assert.equal(registerActionStub.calledOnce, true);
       assert.equal(registerActionStub.args[0][0], ActionType.Update);
@@ -208,10 +339,17 @@ describe("Workspace", () => {
     it(`2: should registerAction method be invoked which register update action
       when directory is created`, async () => {
       const [registerActionStub] = setups.handleDidCreateFiles2();
-      await workspaceAny.handleDidCreateFiles(getFileCreateEvent());
+      await workspace.handleDidCreateFiles(getFileCreateEvent());
 
       assert.equal(registerActionStub.calledOnce, true);
       assert.equal(registerActionStub.args[0][0], ActionType.Update);
+    });
+
+    it(`4: should add uri to not saved array`, async () => {
+      setups.handleDidCreateFiles3();
+      await workspace.handleDidCreateFiles(getFileCreateEvent());
+
+      assert.equal(workspace.getNotSavedUris().size, 1);
     });
   });
 
@@ -219,7 +357,7 @@ describe("Workspace", () => {
     it(`1: should registerAction method be invoked which register remove action
       when file is deleted`, async () => {
       const [registerActionStub] = setups.handleDidDeleteFiles1();
-      await workspaceAny.handleDidDeleteFiles(getFileDeleteEvent());
+      await workspace.handleDidDeleteFiles(getFileDeleteEvent());
 
       assert.equal(registerActionStub.calledOnce, true);
       assert.equal(registerActionStub.args[0][0], ActionType.Remove);
@@ -228,17 +366,28 @@ describe("Workspace", () => {
     it(`2: should registerAction method be invoked which register remove action
       when directory is deleted`, async () => {
       const [registerActionStub] = setups.handleDidDeleteFiles2();
-      await workspaceAny.handleDidDeleteFiles(getFileDeleteEvent());
+      await workspace.handleDidDeleteFiles(getFileDeleteEvent());
 
       assert.equal(registerActionStub.calledOnce, true);
       assert.equal(registerActionStub.args[0][0], ActionType.Remove);
     });
   });
 
+  describe("handleDidSaveTextDocument", () => {
+    it(`should remove uri from not saved array`, async () => {
+      setups.handleDidSaveTextDocument1();
+      await workspace.handleDidSaveTextDocument(
+        getTextDocumentStub(undefined, "/test/path2")
+      );
+
+      assert.equal(workspace.getNotSavedUris().size, 2);
+    });
+  });
+
   describe("handleWillActionProcessorProcessing", () => {
     it("1: should onWillProcessing event be emitted", () => {
       const eventEmitter = setups.handleWillActionProcessorProcessing1();
-      workspaceAny.handleWillActionProcessorProcessing();
+      workspace.handleWillActionProcessorProcessing();
 
       assert.equal(eventEmitter.fire.calledOnce, true);
     });
@@ -247,7 +396,7 @@ describe("Workspace", () => {
   describe("handleDidActionProcessorProcessing", () => {
     it("1: should onDidProcessing event be emitted", () => {
       const eventEmitter = setups.handleDidActionProcessorProcessing1();
-      workspaceAny.handleDidActionProcessorProcessing();
+      workspace.handleDidActionProcessorProcessing();
 
       assert.equal(eventEmitter.fire.calledOnce, true);
     });
@@ -256,7 +405,7 @@ describe("Workspace", () => {
   describe("handleWillActionProcessorExecuteAction", () => {
     it("1: should onWillExecuteAction event be emitted", () => {
       const eventEmitter = setups.handleWillActionProcessorExecuteAction1();
-      workspaceAny.handleWillActionProcessorExecuteAction();
+      workspace.handleWillActionProcessorExecuteAction(getAction());
 
       assert.equal(eventEmitter.fire.calledOnce, true);
     });

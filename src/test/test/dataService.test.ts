@@ -1,23 +1,17 @@
 import { assert } from "chai";
-import Config from "../../config";
-import DataService from "../../dataService";
-import Utils from "../../utils";
+import { dataService } from "../../dataService";
 import { getTestSetups } from "../testSetup/dataService.testSetup";
 import { getItem, getItems } from "../util/itemMockFactory";
-import { getConfigStub, getUtilsStub } from "../util/stubFactory";
+
+type SetupsType = ReturnType<typeof getTestSetups>;
 
 describe("DataService", () => {
-  let utilsStub: Utils = getUtilsStub();
-  let configStub: Config = getConfigStub();
-  let dataService: DataService = new DataService(utilsStub, configStub);
-  let setups = getTestSetups(dataService);
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    utilsStub = getUtilsStub();
-    configStub = getConfigStub();
-    dataService = new DataService(utilsStub, configStub);
-    setups = getTestSetups(dataService);
+  before(() => {
+    setups = getTestSetups();
   });
+  afterEach(() => setups.afterEach());
 
   describe("reload", () => {
     it("1: should fetchConfig method be invoked", () => {
@@ -34,6 +28,7 @@ describe("DataService", () => {
       dataService.cancel();
 
       assert.equal(setCancelledStub.calledOnce, true);
+      assert.equal(setCancelledStub.calledWith(true), true);
     });
   });
 
@@ -77,10 +72,10 @@ describe("DataService", () => {
     });
 
     it(`6: should repeat trial to get symbols for file if returned undefined`, async () => {
-      const [sleepStub] = setups.fetchData6();
+      const [getSymbolsForUriStub] = setups.fetchData6();
       await dataService.fetchData();
 
-      assert.equal(sleepStub.callCount, 10);
+      assert.equal(getSymbolsForUriStub.callCount, 10);
     });
 
     it(`7: should return empty array of items with workspace data if fetching is canceled`, async () => {
@@ -120,42 +115,39 @@ describe("DataService", () => {
   });
 
   describe("isUriExistingInWorkspace", () => {
-    it(`1: should return true if uri exists in workspace
-      and cache should not be checked`, async () => {
+    it("1: should return true if uri exists in workspace", async () => {
       setups.isUriExistingInWorkspace1();
 
       const item = getItem();
       assert.equal(await dataService.isUriExistingInWorkspace(item), true);
     });
 
-    it(`2: should return false if uri does not exist in workspace
-    and cache should not be checked`, async () => {
+    it("2: should return false if uri does not exist in workspace", async () => {
       setups.isUriExistingInWorkspace2();
 
       const item = getItem("./test/path/to/workspace");
       assert.equal(await dataService.isUriExistingInWorkspace(item), false);
     });
+  });
 
-    it(`3: should return true if uri exists in workspace, cache is checked
-      and cache is not empty`, async () => {
-      setups.isUriExistingInWorkspace3();
+  describe("getIsCancelled", () => {
+    it("1: should return state of isCancelled flag", () => {
+      dataService.setIsCancelled(true);
+      assert.equal(dataService.getIsCancelled(), true);
+    });
+  });
 
-      const item = getItem();
-      assert.equal(
-        await dataService.isUriExistingInWorkspace(item, true),
-        true
-      );
+  describe("fetchConfig", () => {
+    it("1: should fetch items filter", () => {
+      const itemsFilter = setups.fetchConfig1();
+      dataService.fetchConfig();
+      assert.equal(dataService.getItemsFilter(), itemsFilter);
     });
 
-    it(`4: should return true if uri exists in workspace, cache is checked
-      and cache is empty`, async () => {
-      setups.isUriExistingInWorkspace4();
-
-      const item = getItem();
-      assert.equal(
-        await dataService.isUriExistingInWorkspace(item, true),
-        true
-      );
+    it("2: should patternProvider.fetchConfig method be invoked", () => {
+      const [patternProviderFetchConfigStub] = setups.fetchConfig2();
+      dataService.fetchConfig();
+      assert.equal(patternProviderFetchConfigStub.calledOnce, true);
     });
   });
 });

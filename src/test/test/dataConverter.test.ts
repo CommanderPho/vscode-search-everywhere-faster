@@ -1,22 +1,16 @@
 import { assert } from "chai";
-import { getUtilsStub, getConfigStub } from "../util/stubFactory";
-import DataConverter from "../../dataConverter";
-import Utils from "../../utils";
-import Config from "../../config";
+import { dataConverter } from "../../dataConverter";
 import { getTestSetups } from "../testSetup/dataConverter.testSetup";
 
-describe("DataConverter", () => {
-  let utilsStub: Utils = getUtilsStub();
-  let configStub: Config = getConfigStub();
-  let dataConverter: DataConverter = new DataConverter(utilsStub, configStub);
-  let setups = getTestSetups(dataConverter);
+type SetupsType = ReturnType<typeof getTestSetups>;
 
-  beforeEach(() => {
-    utilsStub = getUtilsStub();
-    configStub = getConfigStub();
-    dataConverter = new DataConverter(utilsStub, configStub);
-    setups = getTestSetups(dataConverter);
+describe("DataConverter", () => {
+  let setups: SetupsType;
+
+  before(() => {
+    setups = getTestSetups();
   });
+  afterEach(() => setups.afterEach());
 
   describe("reload", () => {
     it("1: should fetchConfig method be invoked", () => {
@@ -33,6 +27,7 @@ describe("DataConverter", () => {
       dataConverter.cancel();
 
       assert.equal(setCancelledStub.calledOnce, true);
+      assert.equal(setCancelledStub.calledWith(true), true);
     });
   });
 
@@ -55,6 +50,29 @@ describe("DataConverter", () => {
     it("4: should return empty array if isCancelled equal to true", () => {
       const { workspaceData, qpItems } = setups.convertToQpData4();
       assert.deepEqual(dataConverter.convertToQpData(workspaceData), qpItems);
+    });
+  });
+
+  describe("fetchConfig", () => {
+    it("1: should fetch icons", () => {
+      const icons = setups.fetchConfig1();
+      dataConverter.fetchConfig();
+      assert.equal(dataConverter.getIcons(), icons);
+    });
+
+    it("2: should fetch shouldUseItemsFilterPhrases flag", () => {
+      const shouldUseItemsFilterPhrases = setups.fetchConfig2();
+      dataConverter.fetchConfig();
+      assert.equal(
+        dataConverter.getShouldUseItemsFilterPhrases(),
+        shouldUseItemsFilterPhrases
+      );
+    });
+
+    it("3: should fetch items filter phrases", () => {
+      const itemsFilterPhrases = setups.fetchConfig3();
+      dataConverter.fetchConfig();
+      assert.equal(dataConverter.getItemsFilterPhrases(), itemsFilterPhrases);
     });
   });
 });

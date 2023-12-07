@@ -1,47 +1,56 @@
+import * as sinon from "sinon";
 import * as vscode from "vscode";
-import ActionProcessor from "../../actionProcessor";
-import ActionType from "../../enum/actionType";
+import { actionProcessor } from "../../actionProcessor";
+import * as actionProcessorEventsEmitter from "../../actionProcessorEventsEmitter";
+import { Action, ActionType } from "../../types";
+import { utils } from "../../utils";
 import { getAction, getActions, getEventEmitter } from "../util/mockFactory";
-import { restoreStubbedMultiple, stubMultiple } from "../util/stubHelpers";
+import { stubMultiple } from "../util/stubHelpers";
 
-export const getTestSetups = (actionProcessor: ActionProcessor) => {
-  const actionProcessorAny = actionProcessor as any;
+export const getTestSetups = () => {
+  const sandbox = sinon.createSandbox();
+
   return {
+    afterEach: () => {
+      sandbox.restore();
+    },
     register1: () => {
-      return stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "add",
-        },
-      ]);
+      return stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "add",
+          },
+        ],
+        sandbox
+      );
     },
     register2: () => {
-      return stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "process",
-        },
-        {
-          object: actionProcessorAny,
-          method: "isBusy",
-          returns: false,
-          isNotMethod: true,
-        },
-      ]);
+      return stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "process",
+          },
+        ],
+        sandbox
+      );
     },
     register3: () => {
-      return stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "process",
-        },
-        {
-          object: actionProcessorAny,
-          method: "isBusy",
-          returns: true,
-          isNotMethod: true,
-        },
-      ]);
+      return stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "process",
+          },
+          {
+            object: actionProcessor,
+            method: "getIsBusy",
+            returns: true,
+          },
+        ],
+        sandbox
+      );
     },
     register4: () => {
       const uri = vscode.Uri.file("./test/#");
@@ -59,37 +68,32 @@ export const getTestSetups = (actionProcessor: ActionProcessor) => {
         getAction(ActionType.Update, "test action 4", 4, true, uri),
       ];
 
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "previousAction",
-          returns: undefined,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: queue,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "actionId",
-          returns: 5,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "isBusy",
-          returns: false,
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "getPreviousAction",
+            returns: undefined,
+          },
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+          {
+            object: utils,
+            method: "getLastFromArray",
+            returns: action,
+          },
+          {
+            object: utils,
+            method: "groupBy",
+            returns: new Map<string, Action[]>(),
+          },
+        ],
+        sandbox
+      );
 
       return {
         action,
@@ -97,11 +101,6 @@ export const getTestSetups = (actionProcessor: ActionProcessor) => {
       };
     },
     register5: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const uri = vscode.Uri.file("./test/#");
       const action = getAction(
         ActionType.Update,
@@ -128,86 +127,84 @@ export const getTestSetups = (actionProcessor: ActionProcessor) => {
         ),
       ];
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: queue,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "actionId",
-          returns: 4,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "isBusy",
-          returns: false,
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+        ],
+        sandbox
+      );
 
       return { action, queue };
     },
     register6: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const eventEmitter = getEventEmitter();
       const action = getAction(ActionType.Rebuild);
+      const queue = getActions(1, undefined, ActionType.Rebuild);
+      const groupedActions = new Map<string, Action[]>();
+      groupedActions.set(ActionType.Update, queue);
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: getActions(1, undefined, ActionType.Rebuild),
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "onWillProcessingEventEmitter",
-          returns: eventEmitter,
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+          {
+            object: actionProcessorEventsEmitter,
+            method: "onWillProcessingEventEmitter",
+            returns: eventEmitter,
+            isNotMethod: true,
+          },
+          {
+            object: utils,
+            method: "groupBy",
+            returns: groupedActions,
+          },
+        ],
+        sandbox
+      );
 
       return { action, eventEmitter };
     },
     register7: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const eventEmitter = getEventEmitter();
       const action = getAction(ActionType.Rebuild);
+      const queue = getActions(1, undefined, ActionType.Rebuild);
+      const groupedActions = new Map<string, Action[]>();
+      groupedActions.set(ActionType.Update, queue);
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: getActions(1, undefined, ActionType.Rebuild),
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "onDidProcessingEventEmitter",
-          returns: eventEmitter,
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+          {
+            object: actionProcessorEventsEmitter,
+            method: "onDidProcessingEventEmitter",
+            returns: eventEmitter,
+            isNotMethod: true,
+          },
+          {
+            object: utils,
+            method: "groupBy",
+            returns: groupedActions,
+          },
+        ],
+        sandbox
+      );
       return { action, eventEmitter };
     },
     register8: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const eventEmitter = getEventEmitter();
       const uri = vscode.Uri.file("./test/#");
       const action = getAction(
@@ -218,80 +215,92 @@ export const getTestSetups = (actionProcessor: ActionProcessor) => {
         uri
       );
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: getActions(1, undefined, ActionType.Update, undefined, true),
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "onWillExecuteActionEventEmitter",
-          returns: eventEmitter,
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: getActions(
+              1,
+              undefined,
+              ActionType.Update,
+              undefined,
+              true
+            ),
+            isNotMethod: true,
+          },
+          {
+            object: actionProcessorEventsEmitter,
+            method: "onWillExecuteActionEventEmitter",
+            returns: eventEmitter,
+            isNotMethod: true,
+          },
+        ],
+        sandbox
+      );
       return { action, eventEmitter };
     },
     register9: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const action = getAction(ActionType.Rebuild);
       const queue = getActions(2, undefined, ActionType.Rebuild);
+      const groupedActions = new Map<string, Action[]>();
+      groupedActions.set(ActionType.Rebuild, queue);
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: queue,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "previousAction",
-          returns: undefined,
-          isNotMethod: true,
-          returnsIsUndefined: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+          {
+            object: actionProcessor,
+            method: "getPreviousAction",
+            returns: undefined,
+            returnsIsUndefined: true,
+          },
+          {
+            object: utils,
+            method: "groupBy",
+            returns: groupedActions,
+          },
+        ],
+        sandbox
+      );
       return { action, queue };
     },
     register10: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const action = getAction(ActionType.Rebuild);
       const queue = getActions(2, undefined, ActionType.Rebuild);
+      const groupedActions = new Map<string, Action[]>();
+      groupedActions.set(ActionType.Rebuild, queue);
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: queue,
-          isNotMethod: true,
-        },
-        {
-          object: actionProcessorAny,
-          method: "previousAction",
-          returns: getAction(ActionType.Rebuild),
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+          {
+            object: actionProcessor,
+            method: "getPreviousAction",
+            returns: getAction(ActionType.Rebuild),
+          },
+          {
+            object: utils,
+            method: "groupBy",
+            returns: groupedActions,
+          },
+        ],
+        sandbox
+      );
 
       return { action, queue };
     },
     register11: () => {
-      restoreStubbedMultiple([
-        { object: actionProcessorAny.utils, method: "getLastFromArray" },
-        { object: actionProcessorAny.utils, method: "groupBy" },
-      ]);
-
       const uri = vscode.Uri.file("./test/#");
       const action = getAction(
         ActionType.Update,
@@ -312,14 +321,17 @@ export const getTestSetups = (actionProcessor: ActionProcessor) => {
         ),
       ];
 
-      stubMultiple([
-        {
-          object: actionProcessorAny,
-          method: "queue",
-          returns: queue,
-          isNotMethod: true,
-        },
-      ]);
+      stubMultiple(
+        [
+          {
+            object: actionProcessor,
+            method: "queue",
+            returns: queue,
+            isNotMethod: true,
+          },
+        ],
+        sandbox
+      );
       return { action, queue };
     },
   };

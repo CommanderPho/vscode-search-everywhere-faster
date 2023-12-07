@@ -1,32 +1,42 @@
+import * as sinon from "sinon";
 import * as vscode from "vscode";
-import ExcludeMode from "../../enum/excludeMode";
-import Utils from "../../utils";
+import { utils } from "../../utils";
+import { getItem } from "../util/itemMockFactory";
 import { getWorkspaceData } from "../util/mockFactory";
-import { restoreStubbedMultiple, stubMultiple } from "../util/stubHelpers";
+import { getQpItem } from "../util/qpItemMockFactory";
+import { stubMultiple } from "../util/stubHelpers";
 
-export const getTestSetups = (utils: Utils) => {
-  const utilsAny = utils as any;
+export const getTestSetups = () => {
+  const sandbox = sinon.createSandbox();
 
-  const stubWorkspaceFolders = (paths: string[]) => {
+  const stubWorkspaceFolders = (paths: string[] | undefined) => {
     let index = 0;
 
-    const workspaceFolders = paths.map((path) => ({
-      index: index++,
-      name: path,
-      uri: vscode.Uri.file(path),
-    }));
+    const workspaceFolders = paths
+      ? paths.map((path) => ({
+          index: index++,
+          name: path,
+          uri: vscode.Uri.file(path),
+        }))
+      : undefined;
 
-    stubMultiple([
-      {
-        object: vscode.workspace,
-        method: "workspaceFolders",
-        returns: workspaceFolders,
-        isNotMethod: true,
-      },
-    ]);
+    stubMultiple(
+      [
+        {
+          object: vscode.workspace,
+          method: "workspaceFolders",
+          returns: workspaceFolders,
+          isNotMethod: true,
+        },
+      ],
+      sandbox
+    );
   };
 
   return {
+    afterEach: () => {
+      sandbox.restore();
+    },
     hasWorkspaceAnyFolder1: () => {
       stubWorkspaceFolders(["/#"]);
     },
@@ -39,85 +49,38 @@ export const getTestSetups = (utils: Utils) => {
     hasWorkspaceMoreThanOneFolder2: () => {
       stubWorkspaceFolders(["/#"]);
     },
-    shouldReindexOnConfigurationChange1: () => {
-      restoreStubbedMultiple([
-        { object: utilsAny.config, method: "getExcludeMode" },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "getExcludeMode",
-          returns: ExcludeMode.SearchEverywhere,
-        },
-      ]);
-    },
-    shouldReindexOnConfigurationChange2: () => {
-      restoreStubbedMultiple([
-        { object: utilsAny.config, method: "getExcludeMode" },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "getExcludeMode",
-          returns: ExcludeMode.SearchEverywhere,
-        },
-      ]);
-    },
-    shouldReindexOnConfigurationChange3: () => {
-      restoreStubbedMultiple([
-        { object: utilsAny.config, method: "getExcludeMode" },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "getExcludeMode",
-          returns: ExcludeMode.SearchEverywhere,
-        },
-      ]);
-    },
-    shouldReindexOnConfigurationChange4: () => {
-      restoreStubbedMultiple([
-        { object: utilsAny.config, method: "getExcludeMode" },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "getExcludeMode",
-          returns: ExcludeMode.FilesAndSearch,
-        },
-      ]);
-    },
-    shouldReindexOnConfigurationChange5: () => {
-      restoreStubbedMultiple([
-        { object: utilsAny.config, method: "getExcludeMode" },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "getExcludeMode",
-          returns: ExcludeMode.FilesAndSearch,
-        },
-      ]);
-    },
     printNoFolderOpenedMessage1: () => {
-      return stubMultiple([
-        {
-          object: vscode.window,
-          method: "showInformationMessage",
-        },
-      ]);
+      return stubMultiple(
+        [
+          {
+            object: vscode.window,
+            method: "showInformationMessage",
+          },
+        ],
+        sandbox
+      );
     },
     printNoFolderOpenedMessage2: () => {
-      restoreStubbedMultiple([
-        { object: vscode.window, method: "showInformationMessage" },
-      ]);
-
-      return stubMultiple([
-        {
-          object: vscode.window,
-          method: "showInformationMessage",
-        },
-      ]);
+      return stubMultiple(
+        [
+          {
+            object: vscode.window,
+            method: "showInformationMessage",
+          },
+        ],
+        sandbox
+      );
+    },
+    printStatsMessage1: () => {
+      return stubMultiple(
+        [
+          {
+            object: vscode.window,
+            method: "showInformationMessage",
+          },
+        ],
+        sandbox
+      );
     },
     clearWorkspaceData1: () => {
       const workspaceDataItems = [
@@ -147,65 +110,8 @@ export const getTestSetups = (utils: Utils) => {
 
       return getWorkspaceData(workspaceDataItems);
     },
-    getNotificationLocation1: () => {
-      restoreStubbedMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-        },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-          returns: true,
-        },
-      ]);
-    },
-    getNotificationLocation2: () => {
-      restoreStubbedMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-        },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-          returns: false,
-        },
-      ]);
-    },
-    getNotificationTitle1: () => {
-      restoreStubbedMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-        },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-          returns: true,
-        },
-      ]);
-    },
-    getNotificationTitle2: () => {
-      restoreStubbedMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-        },
-      ]);
-      stubMultiple([
-        {
-          object: utilsAny.config,
-          method: "shouldDisplayNotificationInStatusBar",
-          returns: false,
-        },
-      ]);
+    sleepAndExecute1: () => {
+      return sinon.stub();
     },
     updateQpItemsWithNewDirectoryPath1: () => {
       stubWorkspaceFolders([
@@ -221,8 +127,118 @@ export const getTestSetups = (utils: Utils) => {
     },
     normalizeUriPath1: () => {
       stubWorkspaceFolders([
-        "/test/path/to/workspace",
-        "/test2/path2/to2/workspace2",
+        "/common/path/folder1/subfolder",
+        "/common/path/folder2/subfolder",
+      ]);
+      stubMultiple(
+        [
+          {
+            object: utils,
+            method: "getWorkspaceFoldersCommonPathProp",
+            returns: "/common/path",
+          },
+        ],
+        sandbox
+      );
+      return {
+        item: getItem("/common/path/folder1/subfolder/"),
+        qpItem: getQpItem("/folder1/subfolder/"),
+      };
+    },
+    normalizeUriPath2: () => {
+      stubWorkspaceFolders(["/test/path/to/workspace"]);
+
+      return {
+        item: getItem("/test/path/to/workspace/"),
+        qpItem: getQpItem(""),
+      };
+    },
+    normalizeUriPath3: () => {
+      stubWorkspaceFolders(undefined);
+
+      return {
+        item: getItem(),
+        qpItem: getQpItem(),
+      };
+    },
+    getStructure1: () => {
+      const workspaceDataItems = [
+        {
+          uri: vscode.Uri.file("/fake/fake-1.ts"),
+          get elements() {
+            return [
+              this.uri,
+              {
+                name: "fake-1.ts§&§test name",
+                detail: "test details",
+                kind: 1,
+                range: new vscode.Range(
+                  new vscode.Position(0, 0),
+                  new vscode.Position(3, 0)
+                ),
+                selectionRange: new vscode.Range(
+                  new vscode.Position(0, 0),
+                  new vscode.Position(3, 0)
+                ),
+                children: [],
+              },
+              {
+                name: "fake-1.ts§&§test name 2",
+                detail: "test details 2",
+                kind: 1,
+                range: new vscode.Range(
+                  new vscode.Position(4, 0),
+                  new vscode.Position(5, 0)
+                ),
+                selectionRange: new vscode.Range(
+                  new vscode.Position(4, 0),
+                  new vscode.Position(5, 0)
+                ),
+                children: [],
+              },
+              {
+                name: "test name 3",
+                detail: "test details 3",
+                kind: 1,
+                range: new vscode.Range(
+                  new vscode.Position(9, 0),
+                  new vscode.Position(9, 0)
+                ),
+                selectionRange: new vscode.Range(
+                  new vscode.Position(9, 0),
+                  new vscode.Position(9, 0)
+                ),
+                children: [],
+              },
+            ];
+          },
+        },
+        {
+          uri: vscode.Uri.file("/fake-other/fake-2.ts"),
+          get elements() {
+            return [this.uri];
+          },
+        },
+        {
+          uri: vscode.Uri.file("/fake-another/fake-3.ts"),
+          get elements() {
+            return [];
+          },
+        },
+      ];
+
+      return getWorkspaceData(workspaceDataItems);
+    },
+    setWorkspaceFoldersCommonPath1: () => {
+      stubWorkspaceFolders(["/#"]);
+    },
+    setWorkspaceFoldersCommonPath2: () => {
+      stubWorkspaceFolders(undefined);
+    },
+    setWorkspaceFoldersCommonPath3: () => {
+      stubWorkspaceFolders([
+        "/common/path/folder1/subfolder",
+        "/common/path/folder2/subfolder",
       ]);
     },
   };

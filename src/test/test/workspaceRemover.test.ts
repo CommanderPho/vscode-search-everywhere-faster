@@ -1,28 +1,19 @@
 import { assert } from "chai";
-import Cache from "../../cache";
-import DetailedActionType from "../../enum/detailedActionType";
-import WorkspaceCommon from "../../workspaceCommon";
-import WorkspaceRemover from "../../workspaceRemover";
+import { DetailedActionType } from "../../types";
+import * as workspaceRemover from "../../workspaceRemover";
 import { getTestSetups } from "../testSetup/workspaceRemover.testSetup";
 import { getDirectory, getItem } from "../util/itemMockFactory";
 import { getQpItems } from "../util/qpItemMockFactory";
-import { getCacheStub, getWorkspaceCommonStub } from "../util/stubFactory";
+
+type SetupsType = ReturnType<typeof getTestSetups>;
 
 describe("WorkspaceRemover", () => {
-  let commonStub: WorkspaceCommon = getWorkspaceCommonStub();
-  let cacheStub: Cache = getCacheStub();
-  let workspaceRemover: WorkspaceRemover = new WorkspaceRemover(
-    commonStub,
-    cacheStub
-  );
-  let setups = getTestSetups(workspaceRemover);
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    commonStub = getWorkspaceCommonStub();
-    cacheStub = getCacheStub();
-    workspaceRemover = new WorkspaceRemover(commonStub, cacheStub);
-    setups = getTestSetups(workspaceRemover);
+  before(() => {
+    setups = getTestSetups();
   });
+  afterEach(() => setups.afterEach());
 
   describe("removeFromCacheByPath", () => {
     it("1: should remove given uri from stored data when file is removed ", () => {
@@ -82,6 +73,19 @@ describe("WorkspaceRemover", () => {
         DetailedActionType.RenameOrMoveDirectory
       );
       assert.equal(updateDataStub.calledWith([]), true);
+    });
+
+    it("6: should remove given uri when file is reloaded if it is unsaved", () => {
+      const [updateDataStub] = setups.removeFromCacheByPath6();
+
+      workspaceRemover.removeFromCacheByPath(
+        getItem(),
+        DetailedActionType.ReloadUnsavedUri
+      );
+      assert.equal(
+        updateDataStub.calledWith(getQpItems(1, undefined, 1)),
+        true
+      );
     });
   });
 });

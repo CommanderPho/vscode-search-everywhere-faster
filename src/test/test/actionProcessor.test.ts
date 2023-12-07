@@ -1,21 +1,18 @@
-import * as sinon from "sinon";
 import { assert } from "chai";
-import { getAction } from "../util/mockFactory";
-import { getUtilsStub } from "../util/stubFactory";
-import ActionProcessor from "../../actionProcessor";
-import Utils from "../../utils";
+import * as sinon from "sinon";
+import { actionProcessor } from "../../actionProcessor";
 import { getTestSetups } from "../testSetup/actionProcessor.testSetup";
+import { getAction } from "../util/mockFactory";
+
+type SetupsType = ReturnType<typeof getTestSetups>;
 
 describe("ActionProcessor", () => {
-  let utilsStub: Utils = getUtilsStub();
-  let actionProcessor: ActionProcessor = new ActionProcessor(utilsStub);
-  let setups = getTestSetups(actionProcessor);
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    utilsStub = getUtilsStub();
-    actionProcessor = new ActionProcessor(utilsStub);
-    setups = getTestSetups(actionProcessor);
+  before(() => {
+    setups = getTestSetups();
   });
+  afterEach(() => setups.afterEach());
 
   describe("register", () => {
     it("1: should add method be invoked", async () => {

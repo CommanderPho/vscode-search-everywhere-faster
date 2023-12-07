@@ -1,25 +1,22 @@
-import * as vscode from "vscode";
-import * as sinon from "sinon";
 import { assert } from "chai";
-import { getExtensionContext } from "../util/mockFactory";
-import * as mock from "../mock/cache.mock";
+import * as vscode from "vscode";
 import { appConfig } from "../../appConfig";
-import Cache from "../../cache";
+import * as cache from "../../cache";
+import * as mock from "../mock/cache.mock";
 import { getTestSetups } from "../testSetup/cache.testSetup";
 
+type SetupsType = ReturnType<typeof getTestSetups>;
+
 describe("Cache", () => {
-  let context: vscode.ExtensionContext = getExtensionContext();
-  let cache: Cache = new Cache(context);
-  let updateStub: sinon.SinonStub;
-  let setups = getTestSetups(context);
+  let context: vscode.ExtensionContext;
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    context = getExtensionContext();
-    cache = new Cache(context);
-
-    setups = getTestSetups(context);
-    updateStub = setups.beforeEach();
+  before(() => {
+    setups = getTestSetups();
+    context = setups.before();
+    cache.initCache(context);
   });
+  afterEach(() => setups.afterEach());
 
   describe("getData", () => {
     it("1: should return array of indexed symbols and files from cache", () => {
@@ -35,13 +32,28 @@ describe("Cache", () => {
 
   describe("updateData", () => {
     it("1: should update cache with new array", () => {
-      const qpItems = setups.updateData1();
+      const {
+        stubs: [updateStub],
+        qpItems,
+      } = setups.updateData1();
       cache.updateData(qpItems);
 
       assert.equal(
         updateStub.calledWith(appConfig.dataCacheKey, qpItems),
         true
       );
+    });
+  });
+
+  describe("getNotSavedUriPaths", () => {
+    it("1: should return array of uri paths from cache", () => {
+      const paths = setups.getNotSavedUriPaths1();
+      assert.equal(cache.getNotSavedUriPaths(), paths);
+    });
+
+    it("2: should return empty array if cache is undefined", () => {
+      const paths = setups.getNotSavedUriPaths2();
+      assert.deepEqual(cache.getNotSavedUriPaths(), paths);
     });
   });
 
@@ -63,7 +75,11 @@ describe("Cache", () => {
 
   describe("updateConfigByKey", () => {
     it("1: should update config value in cache if cache object exists", () => {
-      const { key, newConfig } = setups.updateConfigByKey1();
+      const {
+        stubs: [updateStub],
+        key,
+        newConfig,
+      } = setups.updateConfigByKey1();
       cache.updateConfigByKey(key, mock.newExcludePatterns);
 
       assert.equal(
@@ -73,7 +89,10 @@ describe("Cache", () => {
     });
 
     it("2: should create cache object if it does not exist and set config value", () => {
-      const key = setups.updateConfigByKey2();
+      const {
+        stubs: [updateStub],
+        key,
+      } = setups.updateConfigByKey2();
       cache.updateConfigByKey(key, mock.newExcludePatterns);
 
       assert.equal(
@@ -84,15 +103,25 @@ describe("Cache", () => {
   });
 
   describe("clear", () => {
-    it("1: should clearData and clearConfig methods be invoked", () => {
+    it("1: should clear data and config from cache", () => {
+      const [updateStub] = setups.clear1();
       cache.clear();
       assert.equal(updateStub.calledTwice, true);
     });
   });
 
   describe("clearConfig", () => {
-    it("1: should clear config cache", () => {
+    it("1: should clear config from cache", () => {
+      const [updateStub] = setups.clearConfig1();
       cache.clearConfig();
+      assert.equal(updateStub.calledOnce, true);
+    });
+  });
+
+  describe("clearNotSavedUriPaths", () => {
+    it("1: should clear not saved uri paths from cache", () => {
+      const [updateStub] = setups.clearNotSavedUriPaths1();
+      cache.clearNotSavedUriPaths();
       assert.equal(updateStub.calledOnce, true);
     });
   });

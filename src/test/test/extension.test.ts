@@ -1,22 +1,20 @@
-import * as vscode from "vscode";
 import { assert } from "chai";
-import { getExtensionContext } from "../util/mockFactory";
+import * as sinon from "sinon";
+import * as vscode from "vscode";
 import * as extension from "../../extension";
-import ExtensionController from "../../extensionController";
 import { getTestSetups } from "../testSetup/extension.testSetup";
 
-describe("extension", () => {
-  let context: vscode.ExtensionContext = getExtensionContext();
-  let extensionController: ExtensionController = new ExtensionController(
-    context
-  );
-  let setups = getTestSetups(extensionController);
+type SetupsType = ReturnType<typeof getTestSetups>;
 
-  beforeEach(() => {
-    context = getExtensionContext();
-    extensionController = new ExtensionController(context);
-    setups = getTestSetups(extensionController);
+describe("extension", () => {
+  let setups: SetupsType;
+  let context: vscode.ExtensionContext;
+
+  before(() => {
+    setups = getTestSetups();
+    context = setups.before();
   });
+  afterEach(() => setups.afterEach());
 
   describe("activate", () => {
     it("1: should register two commands", async () => {
@@ -25,31 +23,44 @@ describe("extension", () => {
 
       assert.equal(registerCommandStub.calledTwice, true);
     });
+
+    it("2: should controller.init method be invoked", async () => {
+      const [initStub] = setups.activate2();
+      await extension.activate(context);
+
+      assert.equal(initStub.calledOnce, true);
+    });
+
+    it("3: should controller.startup method be invoked", async () => {
+      const [startupStub] = setups.activate2();
+      await extension.activate(context);
+
+      assert.equal(startupStub.calledOnce, true);
+    });
   });
 
   describe("deactivate", () => {
     it("1: should function exist", () => {
-      const [logStub] = setups.deactivate1();
+      const logStub = sinon.spy(console, "log", ["get"]);
       extension.deactivate();
 
-      assert.equal(logStub.calledOnce, true);
-      assert.equal(typeof extension.deactivate, "function");
+      assert.equal(logStub.get.calledOnce, true);
     });
   });
 
   describe("search", () => {
-    it("1: should extensionController.search method be invoked", () => {
+    it("1: should controller.search method be invoked", () => {
       const [searchStub] = setups.search1();
-      extension.search(extensionController);
+      extension.search();
 
       assert.equal(searchStub.calledOnce, true);
     });
   });
 
   describe("reload", () => {
-    it("1: should extensionController.reload method be invoked", () => {
+    it("1: should controller.reload method be invoked", () => {
       const [reloadStub] = setups.reload1();
-      extension.reload(extensionController);
+      extension.reload();
 
       assert.equal(reloadStub.calledOnce, true);
     });

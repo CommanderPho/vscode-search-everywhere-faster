@@ -1,223 +1,301 @@
 import * as vscode from "vscode";
-import ActionProcessor from "./actionProcessor";
-import Cache from "./cache";
-import Config from "./config";
-import DataConverter from "./dataConverter";
-import DataService from "./dataService";
-import ActionTrigger from "./enum/actionTrigger";
-import ActionType from "./enum/actionType";
-import DetailedActionType from "./enum/detailedActionType";
-import Action from "./interface/action";
-import QuickPickItem from "./interface/quickPickItem";
-import Utils from "./utils";
-import WorkspaceCommon from "./workspaceCommon";
-import WorkspaceEventsEmitter from "./workspaceEventsEmitter";
-import WorkspaceRemover from "./workspaceRemover";
-import WorkspaceUpdater from "./workspaceUpdater";
+import {
+  onDidProcessing,
+  onWillExecuteAction,
+  onWillProcessing,
+} from "./actionProcessorEventsEmitter";
+import {
+  clear,
+  clearConfig,
+  clearNotSavedUriPaths as clearNotSavedUriPathsFromCache,
+  getNotSavedUriPaths as getNotSavedUriPathsFromCache,
+  updateNotSavedUriPaths,
+} from "./cache";
+import { fetchExcludeMode } from "./config";
+import { dataConverter } from "./dataConverter";
+import { dataService } from "./dataService";
+import {
+  Action,
+  ActionTrigger,
+  ActionType,
+  DetailedActionType,
+  ExcludeMode,
+  QuickPickItem,
+} from "./types";
+import { utils } from "./utils";
+import { workspaceCommon as common } from "./workspaceCommon";
+import {
+  onDidDebounceConfigToggleEventEmitter,
+  onDidProcessingEventEmitter,
+  onDidSortingConfigToggleEventEmitter,
+  onWillExecuteActionEventEmitter,
+  onWillProcessingEventEmitter,
+  onWillReindexOnConfigurationChangeEventEmitter,
+} from "./workspaceEventsEmitter";
+import { removeFromCacheByPath } from "./workspaceRemover";
+import { updateCacheByPath } from "./workspaceUpdater";
 
 const debounce = require("debounce");
 
-class Workspace {
-  events!: WorkspaceEventsEmitter;
-
-  private dataService!: DataService;
-  private dataConverter!: DataConverter;
-  private actionProcessor!: ActionProcessor;
-
-  private common!: WorkspaceCommon;
-  private remover!: WorkspaceRemover;
-  private updater!: WorkspaceUpdater;
-
-  constructor(
-    private cache: Cache,
-    private utils: Utils,
-    private config: Config
-  ) {
-    this.initComponents();
-  }
-
-  async index(indexActionType: ActionTrigger): Promise<void> {
-    await this.common.index(indexActionType);
-  }
-
-  registerEventListeners(): void {
-    vscode.workspace.onDidChangeConfiguration(
-      debounce(this.handleDidChangeConfiguration, 250)
-    );
-    vscode.workspace.onDidChangeWorkspaceFolders(
-      debounce(this.handleDidChangeWorkspaceFolders, 250)
-    );
-    vscode.workspace.onDidChangeTextDocument(
-      debounce(this.handleDidChangeTextDocument, 700)
-    );
-    vscode.workspace.onDidRenameFiles(this.handleDidRenameFiles);
-    vscode.workspace.onDidCreateFiles(this.handleDidCreateFiles);
-    vscode.workspace.onDidDeleteFiles(this.handleDidDeleteFiles);
-
-    this.actionProcessor.onDidProcessing(
-      this.handleDidActionProcessorProcessing
-    );
-    this.actionProcessor.onWillProcessing(
-      this.handleWillActionProcessorProcessing
-    );
-    this.actionProcessor.onWillExecuteAction(
-      this.handleWillActionProcessorExecuteAction
-    );
-  }
-
-  getData(): QuickPickItem[] {
-    return this.common.getData();
-  }
-
-  private initComponents(): void {
-    this.dataService = new DataService(this.utils, this.config);
-    this.dataConverter = new DataConverter(this.utils, this.config);
-    this.actionProcessor = new ActionProcessor(this.utils);
-    this.events = new WorkspaceEventsEmitter();
-
-    this.common = new WorkspaceCommon(
-      this.cache,
-      this.utils,
-      this.dataService,
-      this.dataConverter,
-      this.actionProcessor
-    );
-    this.remover = new WorkspaceRemover(this.common, this.cache);
-    this.updater = new WorkspaceUpdater(this.common, this.cache, this.utils);
-  }
-
-  private reloadComponents() {
-    this.dataConverter.reload();
-    this.dataService.reload();
-  }
-
-  private handleDidChangeConfiguration = async (
-    event: vscode.ConfigurationChangeEvent
-  ): Promise<void> => {
-    this.cache.clearConfig();
-    if (this.utils.shouldReindexOnConfigurationChange(event)) {
-      this.reloadComponents();
-      this.events.onWillReindexOnConfigurationChangeEventEmitter.fire();
-      await this.index(ActionTrigger.ConfigurationChange);
-    } else if (this.utils.isDebounceConfigurationToggled(event)) {
-      this.events.onDidDebounceConfigToggleEventEmitter.fire();
-    }
-  };
-
-  private handleDidChangeWorkspaceFolders = async (
-    event: vscode.WorkspaceFoldersChangeEvent
-  ): Promise<void> => {
-    this.utils.hasWorkspaceChanged(event) &&
-      (await this.index(ActionTrigger.WorkspaceFoldersChange));
-  };
-
-  private handleDidChangeTextDocument = async (
-    event: vscode.TextDocumentChangeEvent
-  ) => {
-    const uri = event.document.uri;
-    const isUriExistingInWorkspace =
-      await this.dataService.isUriExistingInWorkspace(uri, true);
-    const hasContentChanged = event.contentChanges.length;
-
-    const actionType = DetailedActionType.TextChange;
-
-    if (isUriExistingInWorkspace && hasContentChanged) {
-      await this.common.registerAction(
-        ActionType.Remove,
-        this.remover.removeFromCacheByPath.bind(this.remover, uri, actionType),
-        ActionTrigger.DidChangeTextDocument,
-        uri
-      );
-
-      await this.common.registerAction(
-        ActionType.Update,
-        this.updater.updateCacheByPath.bind(this.updater, uri, actionType),
-        ActionTrigger.DidChangeTextDocument,
-        uri
-      );
-    }
-  };
-
-  private handleDidRenameFiles = async (event: vscode.FileRenameEvent) => {
-    this.dataService.clearCachedUris();
-
-    const firstFile = event.files[0];
-    const actionType = this.utils.isDirectory(firstFile.oldUri)
-      ? DetailedActionType.RenameOrMoveDirectory
-      : DetailedActionType.RenameOrMoveFile;
-
-    for (let i = 0; i < event.files.length; i++) {
-      const file = event.files[i];
-
-      await this.common.registerAction(
-        ActionType.Update,
-        this.updater.updateCacheByPath.bind(
-          this.updater,
-          file.newUri,
-          actionType,
-          file.oldUri
-        ),
-        ActionTrigger.DidRenameFiles,
-        file.newUri
-      );
-
-      actionType === DetailedActionType.RenameOrMoveFile &&
-        (await this.common.registerAction(
-          ActionType.Remove,
-          this.remover.removeFromCacheByPath.bind(
-            this.remover,
-            file.oldUri,
-            actionType
-          ),
-          ActionTrigger.DidRenameFiles,
-          file.oldUri
-        ));
-    }
-  };
-
-  private handleDidCreateFiles = async (event: vscode.FileCreateEvent) => {
-    this.dataService.clearCachedUris();
-
-    const uri = event.files[0];
-    const actionType = this.utils.isDirectory(uri)
-      ? DetailedActionType.CreateNewDirectory
-      : DetailedActionType.CreateNewFile;
-
-    await this.common.registerAction(
-      ActionType.Update,
-      this.updater.updateCacheByPath.bind(this.updater, uri, actionType),
-      ActionTrigger.DidCreateFiles,
-      uri
-    );
-  };
-
-  private handleDidDeleteFiles = async (event: vscode.FileDeleteEvent) => {
-    this.dataService.clearCachedUris();
-
-    const uri = event.files[0];
-    const actionType = this.utils.isDirectory(uri)
-      ? DetailedActionType.RemoveDirectory
-      : DetailedActionType.RemoveFile;
-
-    await this.common.registerAction(
-      ActionType.Remove,
-      this.remover.removeFromCacheByPath.bind(this.remover, uri, actionType),
-      ActionTrigger.DidDeleteFiles,
-      uri
-    );
-  };
-
-  private handleWillActionProcessorProcessing = () => {
-    this.events.onWillProcessingEventEmitter.fire();
-  };
-
-  private handleDidActionProcessorProcessing = () => {
-    this.events.onDidProcessingEventEmitter.fire();
-  };
-
-  private handleWillActionProcessorExecuteAction = (action: Action) => {
-    this.events.onWillExecuteActionEventEmitter.fire(action);
-  };
+function reloadComponents() {
+  dataConverter.reload();
+  dataService.reload();
 }
 
-export default Workspace;
+async function handleDidChangeConfiguration(
+  event: vscode.ConfigurationChangeEvent
+) {
+  clearConfig();
+  if (workspace.shouldReindexOnConfigurationChange(event)) {
+    reloadComponents();
+    onWillReindexOnConfigurationChangeEventEmitter.fire();
+    await workspace.index(ActionTrigger.ConfigurationChange);
+  } else if (utils.isDebounceConfigurationToggled(event)) {
+    onDidDebounceConfigToggleEventEmitter.fire();
+  } else if (utils.isSortingConfigurationToggled(event)) {
+    onDidSortingConfigToggleEventEmitter.fire();
+  }
+}
+
+async function handleDidChangeWorkspaceFolders(
+  event: vscode.WorkspaceFoldersChangeEvent
+) {
+  utils.hasWorkspaceChanged(event) &&
+    (await workspace.index(ActionTrigger.WorkspaceFoldersChange));
+}
+
+async function handleDidChangeTextDocument(
+  event: vscode.TextDocumentChangeEvent
+) {
+  const uri = event.document.uri;
+  const isUriExistingInWorkspace = await dataService.isUriExistingInWorkspace(
+    uri
+  );
+  const hasContentChanged = event.contentChanges.length;
+
+  const actionType = DetailedActionType.TextChange;
+
+  if (isUriExistingInWorkspace && hasContentChanged) {
+    workspace.addNotSavedUri(uri);
+
+    await common.registerAction(
+      ActionType.Remove,
+      removeFromCacheByPath.bind(null, uri, actionType),
+      ActionTrigger.DidChangeTextDocument,
+      uri
+    );
+
+    await common.registerAction(
+      ActionType.Update,
+      updateCacheByPath.bind(null, uri, actionType),
+      ActionTrigger.DidChangeTextDocument,
+      uri
+    );
+  }
+}
+
+async function handleDidRenameFiles(event: vscode.FileRenameEvent) {
+  const firstFile = event.files[0];
+  const actionType = utils.isDirectory(firstFile.oldUri)
+    ? DetailedActionType.RenameOrMoveDirectory
+    : DetailedActionType.RenameOrMoveFile;
+
+  for (let i = 0; i < event.files.length; i++) {
+    const file = event.files[i];
+
+    await common.registerAction(
+      ActionType.Update,
+      updateCacheByPath.bind(null, file.newUri, actionType, file.oldUri),
+      ActionTrigger.DidRenameFiles,
+      file.newUri
+    );
+
+    actionType === DetailedActionType.RenameOrMoveFile &&
+      (await common.registerAction(
+        ActionType.Remove,
+        removeFromCacheByPath.bind(null, file.oldUri, actionType),
+        ActionTrigger.DidRenameFiles,
+        file.oldUri
+      ));
+  }
+}
+
+async function handleDidCreateFiles(event: vscode.FileCreateEvent) {
+  const uri = event.files[0];
+  const actionType = utils.isDirectory(uri)
+    ? DetailedActionType.CreateNewDirectory
+    : DetailedActionType.CreateNewFile;
+
+  workspace.addNotSavedUri(uri);
+
+  await common.registerAction(
+    ActionType.Update,
+    updateCacheByPath.bind(null, uri, actionType),
+    ActionTrigger.DidCreateFiles,
+    uri
+  );
+}
+
+async function handleDidDeleteFiles(event: vscode.FileDeleteEvent) {
+  const uri = event.files[0];
+  const actionType = utils.isDirectory(uri)
+    ? DetailedActionType.RemoveDirectory
+    : DetailedActionType.RemoveFile;
+
+  await common.registerAction(
+    ActionType.Remove,
+    removeFromCacheByPath.bind(null, uri, actionType),
+    ActionTrigger.DidDeleteFiles,
+    uri
+  );
+}
+
+function handleDidSaveTextDocument(textDocument: vscode.TextDocument) {
+  workspace.removeFromNotSavedUri(textDocument.uri);
+}
+
+function handleWillActionProcessorProcessing() {
+  onWillProcessingEventEmitter.fire();
+}
+
+function handleDidActionProcessorProcessing() {
+  onDidProcessingEventEmitter.fire();
+}
+
+function handleWillActionProcessorExecuteAction(action: Action) {
+  onWillExecuteActionEventEmitter.fire(action);
+}
+
+function shouldReindexOnConfigurationChange(
+  event: vscode.ConfigurationChangeEvent
+): boolean {
+  const excludeMode = fetchExcludeMode();
+  const excluded: string[] = [
+    "shouldDisplayNotificationInStatusBar",
+    "shouldInitOnStartup",
+    "shouldHighlightSymbol",
+    "shouldUseDebounce",
+    "shouldItemsBeSorted",
+    "shouldWorkspaceDataBeCached",
+    "shouldSearchSelection",
+  ].map((config: string) => `${defaultSection}.${config}`);
+
+  return (
+    (event.affectsConfiguration("searchEverywhere") &&
+      !excluded.some((config: string) => event.affectsConfiguration(config))) ||
+    (excludeMode === ExcludeMode.FilesAndSearch &&
+      (event.affectsConfiguration("files.exclude") ||
+        event.affectsConfiguration("search.exclude")))
+  );
+}
+
+async function init() {
+  utils.setWorkspaceFoldersCommonPath();
+  await dataService.fetchConfig();
+  dataConverter.fetchConfig();
+  workspace.registerEventListeners();
+}
+
+async function index(indexActionType: ActionTrigger): Promise<void> {
+  clear();
+  await common.index(indexActionType);
+}
+
+async function removeDataForUnsavedUris() {
+  const paths = Array.from(workspace.getNotSavedUris());
+  for (let i = 0; i < paths.length; i++) {
+    const path = paths[i];
+    const uri = vscode.Uri.file(path);
+
+    await common.registerAction(
+      ActionType.Remove,
+      removeFromCacheByPath.bind(
+        null,
+        uri,
+        DetailedActionType.ReloadUnsavedUri
+      ),
+      ActionTrigger.ReloadUnsavedUri,
+      uri
+    );
+
+    await common.registerAction(
+      ActionType.Update,
+      updateCacheByPath.bind(null, uri, DetailedActionType.ReloadUnsavedUri),
+      ActionTrigger.ReloadUnsavedUri,
+      uri
+    );
+  }
+
+  workspace.clearNotSavedUris();
+}
+
+function registerEventListeners(): void {
+  vscode.workspace.onDidChangeConfiguration(
+    debounce(handleDidChangeConfiguration, 250)
+  );
+  vscode.workspace.onDidChangeWorkspaceFolders(
+    debounce(handleDidChangeWorkspaceFolders, 250)
+  );
+  vscode.workspace.onDidChangeTextDocument(
+    debounce(handleDidChangeTextDocument, 700)
+  );
+  vscode.workspace.onDidRenameFiles(handleDidRenameFiles);
+  vscode.workspace.onDidCreateFiles(handleDidCreateFiles);
+  vscode.workspace.onDidDeleteFiles(handleDidDeleteFiles);
+
+  vscode.workspace.onDidSaveTextDocument(handleDidSaveTextDocument);
+
+  onDidProcessing(handleDidActionProcessorProcessing);
+  onWillProcessing(handleWillActionProcessorProcessing);
+  onWillExecuteAction(handleWillActionProcessorExecuteAction);
+}
+
+function getData(): QuickPickItem[] {
+  return common.getData();
+}
+
+function addNotSavedUri(uri: vscode.Uri) {
+  const notSavedUris = workspace.getNotSavedUris();
+  notSavedUris.add(uri.path);
+  updateNotSavedUriPaths(Array.from(notSavedUris));
+}
+
+function removeFromNotSavedUri(uri: vscode.Uri) {
+  const notSavedUris = workspace.getNotSavedUris();
+  notSavedUris.delete(uri.path);
+  updateNotSavedUriPaths(Array.from(notSavedUris));
+}
+
+function getNotSavedUris() {
+  const array = getNotSavedUriPathsFromCache();
+  return new Set<string>(array);
+}
+
+function clearNotSavedUris() {
+  clearNotSavedUriPathsFromCache();
+}
+
+const defaultSection = "searchEverywhere";
+
+export const workspace = {
+  init,
+  index,
+  registerEventListeners,
+  getData,
+  getNotSavedUris,
+  addNotSavedUri,
+  removeFromNotSavedUri,
+  clearNotSavedUris,
+  removeDataForUnsavedUris,
+  shouldReindexOnConfigurationChange,
+  handleDidChangeConfiguration,
+  handleDidChangeWorkspaceFolders,
+  handleDidChangeTextDocument,
+  handleDidSaveTextDocument,
+  handleDidRenameFiles,
+  handleDidCreateFiles,
+  handleDidDeleteFiles,
+  handleWillActionProcessorProcessing,
+  handleDidActionProcessorProcessing,
+  handleWillActionProcessorExecuteAction,
+};

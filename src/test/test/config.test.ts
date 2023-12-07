@@ -1,162 +1,210 @@
 import { assert } from "chai";
-import * as sinon from "sinon";
-import * as vscode from "vscode";
-import Cache from "../../cache";
-import Config from "../../config";
+import * as config from "../../config";
 import { getTestSetups } from "../testSetup/config.testSetup";
-import { getCacheStub } from "../util/stubFactory";
+
+type SetupsType = ReturnType<typeof getTestSetups>;
 
 describe("Config", () => {
   let configuration: { [key: string]: any };
-  let getConfigurationStub: sinon.SinonStub;
-  let cacheStub: Cache = getCacheStub();
-  let config: Config = new Config(cacheStub);
-  let setups = getTestSetups(config);
+  let setups: SetupsType;
 
-  beforeEach(() => {
-    ({
-      configuration,
-      stubs: [getConfigurationStub],
-    } = setups.beforeEach());
-    cacheStub = getCacheStub();
-    config = new Config(cacheStub);
-    setups = getTestSetups(config);
+  before(() => {
+    setups = getTestSetups();
+    configuration = setups.before();
   });
+  beforeEach(() => setups.beforeEach());
+  afterEach(() => setups.afterEach());
 
-  afterEach(() => {
-    (vscode.workspace.getConfiguration as sinon.SinonStub).restore();
-  });
-
-  describe("shouldDisplayNotificationInStatusBar", () => {
+  describe("fetchShouldDisplayNotificationInStatusBar", () => {
     it("1: should return boolean from configuration", () => {
       const section = "searchEverywhere";
       const key = "shouldDisplayNotificationInStatusBar";
 
       assert.equal(
-        config.shouldDisplayNotificationInStatusBar(),
+        config.fetchShouldDisplayNotificationInStatusBar(),
         configuration[section][key]
       );
     });
   });
 
-  describe("shouldInitOnStartup", () => {
+  describe("fetchShouldInitOnStartup", () => {
     it("1: should return boolean from configuration", () => {
       const section = "searchEverywhere";
       const key = "shouldInitOnStartup";
 
-      assert.equal(config.shouldInitOnStartup(), configuration[section][key]);
+      assert.equal(
+        config.fetchShouldInitOnStartup(),
+        configuration[section][key]
+      );
     });
   });
 
-  describe("shouldHighlightSymbol", () => {
+  describe("fetchShouldHighlightSymbol", () => {
     it("1: should return boolean from configuration", () => {
       const section = "searchEverywhere";
       const key = "shouldHighlightSymbol";
 
-      assert.equal(config.shouldHighlightSymbol(), configuration[section][key]);
+      assert.equal(
+        config.fetchShouldHighlightSymbol(),
+        configuration[section][key]
+      );
     });
   });
 
-  describe("shouldUseDebounce", () => {
+  describe("fetchShouldUseDebounce", () => {
     it("1: should return boolean from configuration", () => {
       const section = "searchEverywhere";
       const key = "shouldUseDebounce";
 
-      assert.equal(config.shouldUseDebounce(), configuration[section][key]);
+      assert.equal(
+        config.fetchShouldUseDebounce(),
+        configuration[section][key]
+      );
     });
   });
 
-  describe("getIcons", () => {
+  describe("fetchIcons", () => {
     it("1: should return object containing icons from configuration", () => {
       const section = "searchEverywhere";
       const key = "icons";
 
-      assert.equal(config.getIcons(), configuration[section][key]);
+      assert.equal(config.fetchIcons(), configuration[section][key]);
     });
   });
 
-  describe("getItemsFilter", () => {
+  describe("fetchItemsFilter", () => {
     it("1: should return object containing items filter from configuration", () => {
       const section = "searchEverywhere";
       const key = "itemsFilter";
 
-      assert.equal(config.getItemsFilter(), configuration[section][key]);
+      assert.equal(config.fetchItemsFilter(), configuration[section][key]);
     });
   });
 
-  describe("shouldUseItemsFilterPhrases", () => {
+  describe("fetchShouldUseItemsFilterPhrases", () => {
     it("1: should return boolean from configuration", () => {
       const section = "searchEverywhere";
       const key = "shouldUseItemsFilterPhrases";
 
       assert.equal(
-        config.shouldUseItemsFilterPhrases(),
+        config.fetchShouldUseItemsFilterPhrases(),
         configuration[section][key]
       );
     });
   });
 
-  describe("getHelpPhrase", () => {
-    it("1: should return help phrase from configuration", () => {
-      const section = "searchEverywhere";
-      const key = "helpPhrase";
-
-      assert.equal(config.getHelpPhrase(), configuration[section][key]);
-    });
-  });
-
-  describe("getItemsFilterPhrases", () => {
+  describe("fetchItemsFilterPhrases", () => {
     it("1: should return object containing items filter phrases from configuration", () => {
       const section = "searchEverywhere";
       const key = "itemsFilterPhrases";
 
-      assert.equal(config.getItemsFilterPhrases(), configuration[section][key]);
+      assert.equal(
+        config.fetchItemsFilterPhrases(),
+        configuration[section][key]
+      );
     });
   });
 
-  describe("getExclude", () => {
+  describe("fetchHelpPhrase", () => {
+    it("1: should return help phrase from configuration", () => {
+      const section = "searchEverywhere";
+      const key = "helpPhrase";
+
+      assert.equal(config.fetchHelpPhrase(), configuration[section][key]);
+    });
+  });
+
+  describe("fetchShouldItemsBeSorted", () => {
+    it("1: should return boolean from configuration", () => {
+      const section = "searchEverywhere";
+      const key = "shouldItemsBeSorted";
+
+      assert.equal(
+        config.fetchShouldItemsBeSorted(),
+        configuration[section][key]
+      );
+    });
+  });
+
+  describe("fetchShouldSearchSelection", () => {
+    it("1: should return boolean from configuration", () => {
+      const section = "searchEverywhere";
+      const key = "shouldSearchSelection";
+
+      assert.equal(
+        config.fetchShouldSearchSelection(),
+        configuration[section][key]
+      );
+    });
+  });
+
+  describe("fetchExclude", () => {
     it("1: should return array of exclude patterns from configuration", () => {
       const section = "searchEverywhere";
       const key = "exclude";
 
-      assert.equal(config.getExclude(), configuration[section][key]);
+      assert.equal(config.fetchExclude(), configuration[section][key]);
     });
 
     it(`2: should return array of exclude patterns
         from cache if it is not empty`, () => {
       const section = "searchEverywhere";
       const key = "exclude";
-      setups.getExclude2(section, key);
+      const [getConfigurationStub] = setups.getExclude2(section, key);
 
-      assert.deepEqual(config.getExclude(), configuration[section][key]);
+      assert.deepEqual(config.fetchExclude(), configuration[section][key]);
       assert.equal(getConfigurationStub.calledOnce, false);
     });
   });
 
-  describe("getInclude", () => {
+  describe("fetchInclude", () => {
     it("1: should return array of include pattern from configuration", () => {
       const section = "searchEverywhere";
       const key = "include";
 
-      assert.equal(config.getInclude(), configuration[section][key]);
+      assert.equal(config.fetchInclude(), configuration[section][key]);
     });
   });
 
-  describe("getFilesAndSearchExclude", () => {
+  describe("fetchFilesAndSearchExclude", () => {
     it("1: should return array of exclude patterns from configuration", () => {
-      assert.deepEqual(config.getFilesAndSearchExclude(), [
+      assert.deepEqual(config.fetchFilesAndSearchExclude(), [
         "**/.git",
         "**/search_exclude/**",
       ]);
     });
   });
 
-  describe("getExcludeMode", () => {
+  describe("fetchExcludeMode", () => {
     it("1: should return exclude mode from configuration", () => {
       const section = "searchEverywhere";
       const key = "excludeMode";
 
-      assert.equal(config.getExcludeMode(), configuration[section][key]);
+      assert.equal(config.fetchExcludeMode(), configuration[section][key]);
+    });
+  });
+
+  describe("fetchShouldWorkspaceDataBeCached", () => {
+    it("1: should return boolean from configuration", () => {
+      const section = "searchEverywhere";
+      const key = "shouldWorkspaceDataBeCached";
+
+      assert.equal(
+        config.fetchShouldWorkspaceDataBeCached(),
+        configuration[section][key]
+      );
+    });
+  });
+
+  describe("fetchShouldSearchSelection", () => {
+    it("1: should return boolean from configuration", () => {
+      const section = "searchEverywhere";
+      const key = "shouldSearchSelection";
+
+      assert.equal(
+        config.fetchShouldSearchSelection(),
+        configuration[section][key]
+      );
     });
   });
 });

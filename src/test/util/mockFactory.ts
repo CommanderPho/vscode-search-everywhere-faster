@@ -1,10 +1,13 @@
 import * as sinon from "sinon";
 import * as vscode from "vscode";
-import ActionType from "../../enum/actionType";
-import ExcludeMode from "../../enum/excludeMode";
-import Action from "../../interface/action";
-import Item from "../../interface/item";
-import WorkspaceData from "../../interface/workspaceData";
+import {
+  Action,
+  ActionType,
+  ExcludeMode,
+  IndexStats,
+  Item,
+  WorkspaceData,
+} from "../../types";
 
 export const getExtensionContext = (): vscode.ExtensionContext => {
   // @ts-expect-error
@@ -13,39 +16,60 @@ export const getExtensionContext = (): vscode.ExtensionContext => {
     workspaceState: {
       get: () => {},
       update: () => Promise.resolve(),
+      keys: () => [] as readonly string[],
     },
     globalState: {
       get: () => {},
       update: () => Promise.resolve(),
+      keys: () => [] as readonly string[],
+      setKeysForSync: (keys: string[]) => {},
     },
     extensionPath: "",
     storagePath: "",
     globalStoragePath: "",
     logPath: "",
+    secrets: {
+      get: () => Promise.resolve(),
+      store: () => Promise.resolve(),
+      delete: () => Promise.resolve(),
+    },
+    extensionUri: undefined,
+    storageUri: undefined,
+    globalStorageUri: undefined,
+    logUri: undefined,
+    environmentVariableCollection: undefined,
+    extensionMode: undefined,
+    extension: undefined,
     asAbsolutePath: (relativePath: string) => relativePath,
-  } as vscode.ExtensionContext;
+  } as unknown as vscode.ExtensionContext;
 };
 
 export const getConfiguration = (): { [key: string]: any } => {
   return {
     searchEverywhere: {
-      shouldDisplayNotificationInStatusBar: true,
       shouldInitOnStartup: true,
+      shouldDisplayNotificationInStatusBar: true,
       shouldHighlightSymbol: true,
+      shouldUseDebounce: true,
       icons: { 0: "fake-icon", 1: "another-fake-icon" },
       itemsFilter: {
-        allowedKinds: [],
+        allowedKinds: [1, 2, 3],
         ignoredKinds: [],
-        ignoredNames: [],
+        ignoredNames: ["demo"],
       },
+      shouldUseItemsFilterPhrases: true,
       itemsFilterPhrases: {
         "0": "$$",
         "1": "^^",
         "4": "@@",
       },
+      helpPhrase: "?",
+      shouldItemsBeSorted: true,
+      shouldSearchSelection: true,
       include: "**/*.{js,ts}",
       exclude: ["**/node_modules/**"],
-      excludeModee: ExcludeMode.SearchEverywhere,
+      excludeMode: ExcludeMode.SearchEverywhere,
+      shouldWorkspaceDataBeCached: true,
     },
     customSection: {
       exclude: ["**/customFolder/**"],
@@ -79,7 +103,7 @@ export const getWorkspaceData = (items: Item[] = []): WorkspaceData => {
   let count = 0;
   const itemsMap = new Map<string, Item>();
   items.forEach((item: Item) => {
-    itemsMap.set(item.uri.fsPath, {
+    itemsMap.set(item.uri.path, {
       uri: item.uri,
       elements: item.elements,
     });
@@ -99,7 +123,7 @@ const getRandomActionType = (): ActionType => {
 
 export const getAction = (
   type?: ActionType,
-  comment: string = "test comment",
+  trigger: string = "test trigger",
   id: number = 0,
   withUri: boolean = false,
   uri: vscode.Uri = vscode.Uri.file(`./fake/fake-${id}.ts`)
@@ -107,7 +131,7 @@ export const getAction = (
   return {
     type: type || getRandomActionType(),
     fn: sinon.stub(),
-    comment,
+    trigger: trigger,
     id,
     uri: withUri ? uri : undefined,
   };
@@ -117,7 +141,7 @@ export const getActions = (
   count: number = 2,
   action?: Action,
   type?: ActionType,
-  comment?: string,
+  trigger?: string,
   withUri?: boolean,
   uri?: vscode.Uri
 ): Action[] => {
@@ -127,7 +151,7 @@ export const getActions = (
     if (action) {
       array.push(action);
     } else {
-      array.push(getAction(type, `${comment} ${i}`, i - 1, withUri, uri));
+      array.push(getAction(type, `${trigger} ${i}`, i - 1, withUri, uri));
     }
   }
   return array;
@@ -150,4 +174,14 @@ export const getItemsFilter = (
     ignoredKinds,
     ignoredNames,
   };
+};
+
+export const getIndexStats = () => {
+  const indexStats: IndexStats = {
+    ElapsedTimeInSeconds: 3,
+    ScannedUrisCount: 20,
+    IndexedItemsCount: 120,
+  };
+
+  return indexStats;
 };
