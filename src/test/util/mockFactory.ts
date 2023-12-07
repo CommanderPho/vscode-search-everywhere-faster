@@ -10,7 +10,6 @@ import {
 } from "../../types";
 
 export const getExtensionContext = (): vscode.ExtensionContext => {
-  // @ts-expect-error
   return {
     subscriptions: [],
     workspaceState: {

@@ -6,7 +6,6 @@ export function getTextEditorStub(
   isUntitled: boolean = true,
   getTextReturnValue: string = ""
 ): vscode.TextEditor {
-  // @ts-expect-error
   return {
     document: {
       uri: createStubInstance(vscode.Uri),
