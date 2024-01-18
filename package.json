@@ -222,10 +222,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/kbysiec/vscode-search-everywhere"
+    "url": "https://github.com/CommanderPho/vscode-search-everywhere"
   },
   "bugs": {
-    "url": "https://github.com/kbysiec/vscode-search-everywhere/issues"
+    "url": "https://github.com/CommanderPho/vscode-search-everywhere/issues"
   },
   "icon": "img/logo.png"
 }
